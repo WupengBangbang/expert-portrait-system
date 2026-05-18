@@ -599,22 +599,35 @@ const dimLabels = {
 const dimColorValues = ['#e74c3c', '#e67e22', '#f39c12', '#27ae60', '#2980b9', '#8e44ad'];
 const dimOrder = ["academic_influence", "research_output", "talent_development", "industry_contribution", "international_engagement", "leadership_service"];
 
-// Load data
-fetch('experts_data.json')
-  .then(r => r.json())
-  .then(data => {
-    allExperts = data.sort((a, b) => {
-      const na = (a.basic_info?.name || '').localeCompare(b.basic_info?.name || '', 'zh-CN');
-      return na;
-    });
-    const enriched = allExperts.filter(e => e.meta?.status === 'enriched').length;
-    document.getElementById('headerStats').textContent = 
-      `共 ${allExperts.length} 位专家 | 已调研 ${enriched} 位 | 待完善 ${allExperts.length - enriched} 位`;
-    applyFilter();
+// Load data - support both single file and chunked loading
+const DATA_CHUNKS = ['data_chunk_0.json','data_chunk_1.json','data_chunk_2.json','data_chunk_3.json','data_chunk_4.json'];
+const SINGLE_FILE = 'experts_data.json';
+
+function initApp(data) {
+  allExperts = data.sort((a, b) => {
+    const na = (a.basic_info?.name || '').localeCompare(b.basic_info?.name || '', 'zh-CN');
+    return na;
+  });
+  const enriched = allExperts.filter(e => e.meta?.status === 'enriched').length;
+  document.getElementById('headerStats').textContent = 
+    `共 ${allExperts.length} 位专家 | 已调研 ${enriched} 位 | 待完善 ${allExperts.length - enriched} 位`;
+  applyFilter();
+}
+
+// Try chunked loading first, fallback to single file
+Promise.all(DATA_CHUNKS.map(f => fetch(f).then(r => { if(!r.ok) throw new Error(r.status); return r.json(); })))
+  .then(chunks => {
+    const merged = chunks.flat();
+    initApp(merged);
   })
-  .catch(err => {
-    document.getElementById('headerStats').textContent = '数据加载失败';
-    console.error(err);
+  .catch(() => {
+    fetch(SINGLE_FILE)
+      .then(r => r.json())
+      .then(data => initApp(data))
+      .catch(err => {
+        document.getElementById('headerStats').textContent = '数据加载失败';
+        console.error(err);
+      });
   });
 
 function applyFilter() {
